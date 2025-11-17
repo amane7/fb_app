@@ -1,37 +1,40 @@
 /**
  * 推し酒アプリ - UIコンポーネント
- * レーダーチャート、モーダル、トースト、各種UI要素
+ * レーダーチャート、モーダル、トースト、各タブのレンダリング
  */
+
+// ==================== グローバル変数 ====================
+let currentTab = 'home';
+let radarChart = null;
+let cameraStream = null;
+let capturedImage = null;
 
 // ==================== トースト通知 ====================
 
 /**
  * トースト通知を表示
  * @param {string} message - メッセージ
- * @param {string} type - 'success' | 'error' | 'info'
+ * @param {string} type - タイプ (success, error, info)
  * @param {number} duration - 表示時間（ミリ秒）
  */
 function showToast(message, type = 'info', duration = 3000) {
     const container = document.getElementById('toast-container');
-    if (!container) return;
-
     const toast = document.createElement('div');
-    toast.className = `toast toast-${type} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2`;
+    toast.className = `toast toast-${type} text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3`;
     
     const icons = {
         success: 'fa-check-circle',
         error: 'fa-exclamation-circle',
         info: 'fa-info-circle'
     };
-
+    
     toast.innerHTML = `
         <i class="fas ${icons[type]}"></i>
         <span>${message}</span>
     `;
-
+    
     container.appendChild(toast);
-
-    // アニメーション後に削除
+    
     setTimeout(() => {
         toast.classList.add('removing');
         setTimeout(() => {
@@ -49,12 +52,8 @@ function showToast(message, type = 'info', duration = 3000) {
 function showModal(content) {
     const modal = document.getElementById('modal');
     const modalBody = document.getElementById('modal-body');
-    
-    if (modal && modalBody) {
-        modalBody.innerHTML = content;
-        modal.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-    }
+    modalBody.innerHTML = content;
+    modal.classList.remove('hidden');
 }
 
 /**
@@ -62,56 +61,50 @@ function showModal(content) {
  */
 function closeModal() {
     const modal = document.getElementById('modal');
-    if (modal) {
-        modal.classList.add('hidden');
-        document.body.style.overflow = '';
-    }
+    modal.classList.add('hidden');
 }
 
-// モーダルの背景クリックで閉じる
+// モーダル外クリックで閉じる
 document.addEventListener('DOMContentLoaded', () => {
     const modal = document.getElementById('modal');
-    if (modal) {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                closeModal();
-            }
-        });
-    }
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
 });
 
 // ==================== レーダーチャート ====================
 
-let radarChartInstance = null;
-
 /**
- * レーダーチャートを描画
+ * レーダーチャートを作成
  * @param {string} canvasId - キャンバスID
  * @param {Object} data - 味覚データ
+ * @param {string} label - ラベル
  */
-function renderRadarChart(canvasId, data) {
+function createRadarChart(canvasId, data, label = '味覚プロファイル') {
     const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-
+    if (!canvas) return null;
+    
     const ctx = canvas.getContext('2d');
-
+    
     // 既存のチャートを破棄
-    if (radarChartInstance && radarChartInstance.canvas.id === canvasId) {
-        radarChartInstance.destroy();
+    if (radarChart) {
+        radarChart.destroy();
     }
-
-    radarChartInstance = new Chart(ctx, {
+    
+    radarChart = new Chart(ctx, {
         type: 'radar',
         data: {
             labels: ['甘み', '酸味', '旨み', '苦味', '香り'],
             datasets: [{
-                label: '味覚プロファイル',
+                label: label,
                 data: [
-                    data.sweetness || 3,
-                    data.acidity || 3,
-                    data.umami || 3,
-                    data.bitterness || 3,
-                    data.aroma || 3
+                    data.sweetness || 0,
+                    data.acidity || 0,
+                    data.umami || 0,
+                    data.bitterness || 0,
+                    data.aroma || 0
                 ],
                 backgroundColor: 'rgba(220, 38, 38, 0.2)',
                 borderColor: 'rgba(220, 38, 38, 1)',
@@ -129,27 +122,22 @@ function renderRadarChart(canvasId, data) {
             maintainAspectRatio: true,
             scales: {
                 r: {
+                    beginAtZero: true,
                     min: 0,
                     max: 5,
                     ticks: {
                         stepSize: 1,
                         font: {
-                            family: "'Noto Sans JP', sans-serif",
+                            family: 'Noto Sans JP',
                             size: 12
                         }
                     },
                     pointLabels: {
                         font: {
-                            family: "'Noto Sans JP', sans-serif",
+                            family: 'Noto Sans JP',
                             size: 14,
                             weight: 'bold'
                         }
-                    },
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.1)'
-                    },
-                    angleLines: {
-                        color: 'rgba(0, 0, 0, 0.1)'
                     }
                 }
             },
@@ -160,27 +148,29 @@ function renderRadarChart(canvasId, data) {
             }
         }
     });
+    
+    return radarChart;
 }
 
-// ==================== ホームタブコンテンツ ====================
+// ==================== ホームタブ ====================
 
 function renderHomeTab() {
     const collection = dataManager.getCollection();
-    const stamps = dataManager.getStamps();
     const favorites = dataManager.getFavorites();
+    const stamps = dataManager.getStamps();
     const unlockedStamps = stamps.filter(s => s.unlocked).length;
-
+    
     return `
-        <div class="space-y-6 fade-in">
+        <div class="space-y-6">
             <!-- ウェルカムバナー -->
             <div class="bg-gradient-to-r from-red-600 to-pink-600 text-white p-6 rounded-xl shadow-lg">
-                <h3 class="text-2xl font-bold mb-2">おかえりなさい！</h3>
-                <p class="text-sm opacity-90">あなたの推し酒コレクション</p>
+                <h3 class="text-2xl font-bold mb-2">推し酒へようこそ！</h3>
+                <p class="opacity-90">見つける、育てる、語り合う。</p>
             </div>
-
-            <!-- 統計カード -->
+            
+            <!-- ステータスカード -->
             <div class="grid grid-cols-2 gap-4">
-                <div class="bg-white p-4 rounded-xl shadow-md border border-gray-100 card">
+                <div class="card bg-white p-4 rounded-xl shadow-md">
                     <div class="flex items-center gap-3">
                         <div class="bg-red-100 p-3 rounded-lg">
                             <i class="fas fa-flask text-red-600 text-2xl"></i>
@@ -191,8 +181,8 @@ function renderHomeTab() {
                         </div>
                     </div>
                 </div>
-
-                <div class="bg-white p-4 rounded-xl shadow-md border border-gray-100 card">
+                
+                <div class="card bg-white p-4 rounded-xl shadow-md">
                     <div class="flex items-center gap-3">
                         <div class="bg-pink-100 p-3 rounded-lg">
                             <i class="fas fa-stamp text-pink-600 text-2xl"></i>
@@ -204,475 +194,471 @@ function renderHomeTab() {
                     </div>
                 </div>
             </div>
-
-            <!-- 話題の推し（お気に入り） -->
-            <div class="bg-white p-4 rounded-xl shadow-md border border-gray-100">
-                <h4 class="font-bold text-lg mb-4 flex items-center gap-2">
+            
+            <!-- 話題の推し銘柄 -->
+            <div>
+                <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                     <i class="fas fa-heart text-red-600"></i>
-                    話題の推し
+                    お気に入りの推し銘柄
                 </h4>
                 ${favorites.length > 0 ? `
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-2 gap-4">
                         ${favorites.slice(0, 4).map(sake => `
-                            <div class="cursor-pointer card" onclick="showSakeDetail('${sake.id}')">
+                            <div class="card character-card rarity-${sake.character_rarity} cursor-pointer" 
+                                 onclick="showSakeDetail('${sake.id}')">
                                 <div class="relative">
-                                    <img src="${sake.character_image}" alt="${sake.character_name}" 
-                                         class="w-full h-32 object-cover rounded-lg">
-                                    <div class="absolute top-2 right-2">
-                                        <span class="rarity-badge ${sake.character_rarity}">${getRarityLabel(sake.character_rarity)}</span>
+                                    <img src="${sake.character_image}" 
+                                         alt="${sake.character_name}" 
+                                         class="character-image rounded-t-xl">
+                                    <div class="favorite-btn active">
+                                        <i class="fas fa-heart"></i>
+                                    </div>
+                                    <div class="absolute bottom-2 left-2">
+                                        <span class="rarity-badge ${sake.character_rarity}">
+                                            ${dataManager.getData('RARITY_LABELS')?.[sake.character_rarity] || sake.character_rarity}
+                                        </span>
                                     </div>
                                 </div>
-                                <p class="mt-2 font-semibold text-sm truncate">${sake.character_name}</p>
-                                <p class="text-xs text-gray-500 truncate">${sake.brand_name}</p>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : `
-                    <div class="text-center py-8 text-gray-400">
-                        <i class="fas fa-heart text-4xl mb-2"></i>
-                        <p>お気に入りがまだありません</p>
-                        <p class="text-sm">❤️をタップしてお気に入り登録しよう！</p>
-                    </div>
-                `}
-            </div>
-
-            <!-- 最近の活動 -->
-            <div class="bg-white p-4 rounded-xl shadow-md border border-gray-100">
-                <h4 class="font-bold text-lg mb-4 flex items-center gap-2">
-                    <i class="fas fa-clock text-blue-600"></i>
-                    最近の活動
-                </h4>
-                ${collection.length > 0 ? `
-                    <div class="space-y-3">
-                        ${collection.slice(0, 5).map(sake => `
-                            <div class="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer transition" onclick="showSakeDetail('${sake.id}')">
-                                <img src="${sake.character_image}" alt="${sake.character_name}" 
-                                     class="w-12 h-12 object-cover rounded-lg">
-                                <div class="flex-1 min-w-0">
-                                    <p class="font-semibold text-sm truncate">${sake.character_name}</p>
-                                    <p class="text-xs text-gray-500 truncate">${sake.brand_name}</p>
+                                <div class="p-3">
+                                    <h5 class="font-bold text-gray-800 truncate">${sake.character_name}</h5>
+                                    <p class="text-sm text-gray-600 truncate">${sake.brand_name}</p>
+                                    <div class="level-badge mt-2">
+                                        <i class="fas fa-star"></i>
+                                        <span>Lv.${sake.character_level}</span>
+                                    </div>
                                 </div>
-                                <span class="text-xs text-gray-400">${formatDate(sake.collected_date)}</span>
                             </div>
                         `).join('')}
                     </div>
                 ` : `
-                    <div class="text-center py-8 text-gray-400">
-                        <i class="fas fa-camera text-4xl mb-2"></i>
-                        <p>まだコレクションがありません</p>
-                        <p class="text-sm">カメラタブから推し酒を生成しよう！</p>
+                    <div class="bg-gray-50 p-8 rounded-xl text-center">
+                        <i class="fas fa-heart text-gray-300 text-4xl mb-3"></i>
+                        <p class="text-gray-500">お気に入りの日本酒がまだありません</p>
+                        <p class="text-sm text-gray-400 mt-2">図鑑から❤️マークでお気に入り登録しよう！</p>
                     </div>
                 `}
             </div>
-
+            
             <!-- クイックアクション -->
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="switchTab('camera')" 
-                        class="btn btn-primary text-white py-3 rounded-xl flex items-center justify-center gap-2">
-                    <i class="fas fa-camera"></i>
-                    <span>キャラ生成</span>
-                </button>
-                <button onclick="switchTab('collection')" 
-                        class="bg-white border-2 border-red-600 text-red-600 py-3 rounded-xl flex items-center justify-center gap-2 btn">
-                    <i class="fas fa-flask"></i>
-                    <span>図鑑を見る</span>
-                </button>
+            <div>
+                <h4 class="text-lg font-bold text-gray-800 mb-4">クイックアクション</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="switchTab('camera')" 
+                            class="btn btn-primary text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2">
+                        <i class="fas fa-camera text-2xl"></i>
+                        <span>新しく撮影</span>
+                    </button>
+                    <button onclick="switchTab('collection')" 
+                            class="btn bg-gradient-to-r from-purple-600 to-pink-600 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2">
+                        <i class="fas fa-flask text-2xl"></i>
+                        <span>図鑑を開く</span>
+                    </button>
+                    <button onclick="switchTab('tasting')" 
+                            class="btn bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2">
+                        <i class="fas fa-wine-glass-alt text-2xl"></i>
+                        <span>記録する</span>
+                    </button>
+                    <button onclick="switchTab('community')" 
+                            class="btn bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2">
+                        <i class="fas fa-users text-2xl"></i>
+                        <span>投稿する</span>
+                    </button>
+                </div>
             </div>
+            
+            ${collection.length === 0 ? `
+                <!-- 初回ユーザー向けガイド -->
+                <div class="bg-blue-50 border-2 border-blue-200 p-6 rounded-xl">
+                    <h4 class="font-bold text-blue-800 mb-3 flex items-center gap-2">
+                        <i class="fas fa-lightbulb"></i>
+                        はじめてのご利用
+                    </h4>
+                    <ol class="space-y-2 text-sm text-blue-700">
+                        <li class="flex items-start gap-2">
+                            <span class="font-bold">1.</span>
+                            <span>カメラタブで日本酒のラベルを撮影</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="font-bold">2.</span>
+                            <span>AIが自動でキャラクター生成（30-60秒）</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="font-bold">3.</span>
+                            <span>コレクションに追加して育成開始！</span>
+                        </li>
+                    </ol>
+                    <button onclick="dataManager.loadSampleData(); location.reload();" 
+                            class="mt-4 btn bg-blue-600 text-white px-4 py-2 rounded-lg text-sm w-full">
+                        <i class="fas fa-download mr-2"></i>
+                        サンプルデータを読み込む
+                    </button>
+                </div>
+            ` : ''}
         </div>
     `;
 }
 
-// ==================== カメラタブコンテンツ ====================
+// ==================== カメラタブ ====================
 
 function renderCameraTab() {
     return `
-        <div class="space-y-6 fade-in">
-            <!-- タイトル -->
-            <div class="text-center">
-                <h3 class="text-2xl font-bold mb-2">AI推し酒キャラクター生成</h3>
-                <p class="text-gray-600 text-sm">日本酒ラベルから美しいキャラクターを生成</p>
+        <div class="space-y-6">
+            <div class="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-4 rounded-xl">
+                <h3 class="text-xl font-bold mb-2">AI推し酒キャラ生成</h3>
+                <p class="text-sm opacity-90">日本酒のラベルから美しいキャラクターを生成します</p>
             </div>
-
+            
             <!-- カメラプレビュー -->
-            <div class="camera-preview bg-gray-100 rounded-xl overflow-hidden" id="camera-preview-container">
-                <div class="aspect-[3/4] flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                    <div class="text-center text-gray-400">
-                        <i class="fas fa-camera text-6xl mb-4"></i>
-                        <p class="text-lg">日本酒ラベルを撮影</p>
-                        <p class="text-sm">または画像を選択してください</p>
-                    </div>
+            <div class="camera-preview bg-gray-900 rounded-xl overflow-hidden relative" id="camera-container">
+                <video id="camera-video" class="w-full h-auto hidden" autoplay playsinline></video>
+                <canvas id="camera-canvas" class="hidden"></canvas>
+                <img id="preview-image" class="w-full h-auto hidden" />
+                
+                <div id="camera-placeholder" class="flex flex-col items-center justify-center py-20">
+                    <i class="fas fa-camera text-white text-6xl mb-4 opacity-50"></i>
+                    <p class="text-white text-center opacity-75">カメラを起動してラベルを撮影<br/>またはファイルを選択</p>
                 </div>
+                
+                <div class="camera-overlay"></div>
             </div>
-
-            <!-- カメラコントロール -->
+            
+            <!-- コントロールボタン -->
             <div class="grid grid-cols-2 gap-3">
-                <button onclick="openCamera()" id="camera-btn"
-                        class="bg-blue-600 text-white py-3 rounded-xl flex items-center justify-center gap-2 btn">
-                    <i class="fas fa-redo"></i>
-                    <span>再撮影</span>
+                <button onclick="startCamera()" id="start-camera-btn"
+                        class="btn btn-primary text-white py-3 rounded-xl font-bold">
+                    <i class="fas fa-camera mr-2"></i>
+                    再撮影
                 </button>
-                <label class="bg-green-600 text-white py-3 rounded-xl flex items-center justify-center gap-2 btn cursor-pointer">
-                    <i class="fas fa-image"></i>
-                    <span>ファイル</span>
-                    <input type="file" accept="image/*" onchange="handleFileSelect(event)" class="hidden">
+                <label for="file-input" 
+                       class="btn bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3 rounded-xl font-bold text-center cursor-pointer">
+                    <i class="fas fa-file-image mr-2"></i>
+                    ファイル
+                    <input type="file" id="file-input" accept="image/*" class="hidden" onchange="handleFileSelect(event)">
                 </label>
             </div>
-
-            <!-- 生成ボタン -->
-            <button onclick="generateCharacter()" id="generate-btn"
-                    class="w-full btn btn-primary text-white py-4 rounded-xl flex items-center justify-center gap-2 text-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            
+            <button onclick="captureAndGenerate()" id="generate-btn"
+                    class="btn bg-gradient-to-r from-red-600 to-pink-600 text-white py-4 rounded-xl font-bold w-full text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled>
-                <i class="fas fa-magic"></i>
-                <span>キャラクターを生成</span>
+                <i class="fas fa-magic mr-2"></i>
+                キャラクター生成開始
             </button>
-
-            <!-- 生成中のステータス -->
-            <div id="generation-status" class="hidden">
-                <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100 text-center">
-                    <div class="spinner mx-auto mb-4"></div>
-                    <p class="font-semibold text-gray-800 mb-2" id="status-message">生成中...</p>
-                    <p class="text-sm text-gray-500" id="status-detail">しばらくお待ちください</p>
-                </div>
-            </div>
-
-            <!-- 生成結果 -->
+            
+            <!-- 生成結果表示エリア -->
             <div id="generation-result" class="hidden">
-                <!-- 結果はJavaScriptで動的に挿入 -->
+                <!-- 生成されたキャラクターがここに表示される -->
             </div>
-
-            <!-- 説明 -->
-            <div class="bg-blue-50 p-4 rounded-xl border border-blue-200">
-                <h4 class="font-bold text-blue-900 mb-2 flex items-center gap-2">
-                    <i class="fas fa-info-circle"></i>
-                    使い方
+            
+            <!-- 注意事項 -->
+            <div class="bg-yellow-50 border-2 border-yellow-200 p-4 rounded-xl">
+                <h4 class="font-bold text-yellow-800 mb-2 flex items-center gap-2">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    撮影のコツ
                 </h4>
-                <ul class="text-sm text-blue-800 space-y-1">
-                    <li>• 明るい場所でラベルを撮影</li>
+                <ul class="text-sm text-yellow-700 space-y-1">
+                    <li>• 明るい場所で撮影してください</li>
                     <li>• ラベル全体が映るように</li>
+                    <li>• 反射や影を避けてください</li>
                     <li>• 生成には30-60秒かかります</li>
-                    <li>• レアリティはランダムで決定</li>
                 </ul>
             </div>
         </div>
     `;
 }
 
-// ==================== 図鑑タブコンテンツ ====================
+// ==================== 図鑑タブ ====================
 
 function renderCollectionTab() {
     const collection = dataManager.getCollection();
-    const rarities = ['legendary', 'epic', 'rare', 'common'];
+    const rarityFilter = localStorage.getItem('rarity_filter') || 'all';
+    
+    // レアリティでフィルター
+    const filteredCollection = rarityFilter === 'all' 
+        ? collection 
+        : collection.filter(sake => sake.character_rarity === rarityFilter);
+    
+    // ソート（レベル降順）
+    const sortedCollection = [...filteredCollection].sort((a, b) => b.character_level - a.character_level);
     
     return `
-        <div class="space-y-6 fade-in">
-            <!-- ヘッダー -->
-            <div class="flex items-center justify-between">
-                <h3 class="text-xl font-bold">コレクション図鑑</h3>
-                <span class="text-sm text-gray-500">${collection.length}種類</span>
+        <div class="space-y-6">
+            <div class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-4 rounded-xl">
+                <h3 class="text-xl font-bold mb-1">日本酒図鑑</h3>
+                <p class="text-sm opacity-90">全 ${collection.length} 銘柄</p>
             </div>
-
+            
             <!-- フィルター -->
             <div class="flex gap-2 overflow-x-auto pb-2">
-                <button onclick="filterCollection('all')" 
-                        class="filter-btn active px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition"
-                        data-filter="all">
-                    すべて (${collection.length})
+                <button onclick="filterByRarity('all')" 
+                        class="filter-btn ${rarityFilter === 'all' ? 'active' : ''} px-4 py-2 rounded-lg font-bold whitespace-nowrap">
+                    すべて
                 </button>
-                ${rarities.map(rarity => {
-                    const count = collection.filter(s => s.character_rarity === rarity).length;
-                    return `
-                        <button onclick="filterCollection('${rarity}')" 
-                                class="filter-btn px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition"
-                                data-filter="${rarity}">
-                            ${getRarityLabel(rarity)} (${count})
-                        </button>
-                    `;
-                }).join('')}
+                <button onclick="filterByRarity('legendary')" 
+                        class="filter-btn ${rarityFilter === 'legendary' ? 'active' : ''} px-4 py-2 rounded-lg font-bold whitespace-nowrap">
+                    <span class="text-yellow-600">★</span> Legendary
+                </button>
+                <button onclick="filterByRarity('epic')" 
+                        class="filter-btn ${rarityFilter === 'epic' ? 'active' : ''} px-4 py-2 rounded-lg font-bold whitespace-nowrap">
+                    <span class="text-purple-600">★</span> Epic
+                </button>
+                <button onclick="filterByRarity('rare')" 
+                        class="filter-btn ${rarityFilter === 'rare' ? 'active' : ''} px-4 py-2 rounded-lg font-bold whitespace-nowrap">
+                    <span class="text-blue-600">★</span> Rare
+                </button>
+                <button onclick="filterByRarity('common')" 
+                        class="filter-btn ${rarityFilter === 'common' ? 'active' : ''} px-4 py-2 rounded-lg font-bold whitespace-nowrap">
+                    Common
+                </button>
             </div>
-
-            <!-- コレクショングリッド -->
-            <div id="collection-grid">
-                ${collection.length > 0 ? `
-                    <div class="grid grid-cols-2 gap-4">
-                        ${collection.map(sake => renderSakeCard(sake)).join('')}
-                    </div>
-                ` : `
-                    <div class="text-center py-16">
-                        <i class="fas fa-flask text-6xl text-gray-300 mb-4"></i>
-                        <p class="text-gray-500 text-lg mb-2">コレクションが空です</p>
-                        <p class="text-gray-400 text-sm mb-6">カメラタブから推し酒を生成しましょう！</p>
-                        <button onclick="switchTab('camera')" 
-                                class="btn btn-primary text-white px-6 py-3 rounded-xl">
-                            <i class="fas fa-camera mr-2"></i>
-                            キャラクター生成
-                        </button>
-                    </div>
-                `}
-            </div>
+            
+            <!-- コレクション表示 -->
+            ${sortedCollection.length > 0 ? `
+                <div class="grid grid-cols-2 gap-4">
+                    ${sortedCollection.map(sake => `
+                        <div class="card character-card rarity-${sake.character_rarity} cursor-pointer" 
+                             onclick="showSakeDetail('${sake.id}')">
+                            <div class="relative">
+                                <img src="${sake.character_image}" 
+                                     alt="${sake.character_name}" 
+                                     class="character-image rounded-t-xl">
+                                <button class="favorite-btn ${sake.favorite ? 'active' : ''}" 
+                                        onclick="event.stopPropagation(); toggleFavorite('${sake.id}')">
+                                    <i class="fas fa-heart"></i>
+                                </button>
+                                <div class="absolute bottom-2 left-2">
+                                    <span class="rarity-badge ${sake.character_rarity}">
+                                        ${sake.character_rarity.toUpperCase()}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="p-3">
+                                <h5 class="font-bold text-gray-800 truncate">${sake.character_name}</h5>
+                                <p class="text-sm text-gray-600 truncate">${sake.brand_name}</p>
+                                <div class="flex items-center justify-between mt-2">
+                                    <div class="level-badge">
+                                        <i class="fas fa-star"></i>
+                                        <span>Lv.${sake.character_level}</span>
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        ${sake.brewery_name}
+                                    </div>
+                                </div>
+                                <div class="exp-bar mt-2">
+                                    <div class="exp-fill" style="width: ${sake.character_exp}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : `
+                <div class="bg-gray-50 p-12 rounded-xl text-center">
+                    <i class="fas fa-flask text-gray-300 text-6xl mb-4"></i>
+                    <p class="text-gray-500 text-lg font-bold mb-2">コレクションが空です</p>
+                    <p class="text-gray-400 text-sm">カメラタブから日本酒を追加しましょう！</p>
+                </div>
+            `}
         </div>
     `;
 }
 
-// ==================== スタンプタブコンテンツ ====================
+// ==================== スタンプタブ ====================
 
 function renderStampsTab() {
     const stamps = dataManager.getStamps();
-    const unlocked = stamps.filter(s => s.unlocked).length;
-
+    const unlockedCount = stamps.filter(s => s.unlocked).length;
+    const progress = Math.round((unlockedCount / stamps.length) * 100);
+    
     return `
-        <div class="space-y-6 fade-in">
-            <!-- ヘッダー -->
-            <div class="text-center">
-                <h3 class="text-2xl font-bold mb-2">御酒印コレクション</h3>
-                <p class="text-gray-600 text-sm">達成度: ${unlocked}/${stamps.length}</p>
-                <div class="mt-4">
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${(unlocked/stamps.length)*100}%"></div>
-                    </div>
+        <div class="space-y-6">
+            <div class="bg-gradient-to-r from-amber-600 to-orange-600 text-white p-4 rounded-xl">
+                <h3 class="text-xl font-bold mb-1">御酒印コレクション</h3>
+                <p class="text-sm opacity-90">${unlockedCount}/${stamps.length} 獲得</p>
+            </div>
+            
+            <!-- 全体進捗 -->
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="font-bold text-gray-800">コンプリート進捗</span>
+                    <span class="text-2xl font-bold text-red-600">${progress}%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${progress}%"></div>
                 </div>
             </div>
-
-            <!-- スタンプグリッド -->
-            <div class="grid grid-cols-2 gap-4">
+            
+            <!-- スタンプ一覧 -->
+            <div class="grid grid-cols-1 gap-4">
                 ${stamps.map(stamp => `
-                    <div class="stamp-card ${stamp.unlocked ? 'unlocked' : 'locked'} bg-white p-4 rounded-xl shadow-md border border-gray-100 text-center">
-                        <div class="stamp-icon mb-3" style="color: ${stamp.color}">
-                            <i class="fas ${stamp.icon}"></i>
+                    <div class="stamp-card ${stamp.unlocked ? 'unlocked' : 'locked'} 
+                                bg-white p-4 rounded-xl shadow-md">
+                        <div class="flex items-center gap-4">
+                            <div class="stamp-icon" style="color: ${stamp.color}">
+                                <i class="fas ${stamp.icon}"></i>
+                            </div>
+                            <div class="flex-1">
+                                <h4 class="font-bold text-gray-800 text-lg">${stamp.name}</h4>
+                                <p class="text-sm text-gray-600 mt-1">${stamp.description}</p>
+                                ${stamp.unlocked ? `
+                                    <div class="mt-2 flex items-center gap-2 text-green-600">
+                                        <i class="fas fa-check-circle"></i>
+                                        <span class="text-sm font-bold">獲得済み</span>
+                                    </div>
+                                ` : `
+                                    <div class="mt-2">
+                                        <div class="flex items-center justify-between text-sm mb-1">
+                                            <span class="text-gray-600">進捗</span>
+                                            <span class="font-bold text-gray-800">
+                                                ${stamp.progress || 0}/${stamp.target}
+                                            </span>
+                                        </div>
+                                        <div class="progress-bar h-2">
+                                            <div class="progress-fill" 
+                                                 style="width: ${Math.min(100, ((stamp.progress || 0) / stamp.target) * 100)}%">
+                                            </div>
+                                        </div>
+                                    </div>
+                                `}
+                            </div>
                         </div>
-                        <h4 class="font-bold text-sm mb-1">${stamp.name}</h4>
-                        <p class="text-xs text-gray-500 mb-3">${stamp.description}</p>
-                        
-                        ${stamp.unlocked ? `
-                            <div class="text-green-600 font-semibold text-sm">
-                                <i class="fas fa-check-circle mr-1"></i>
-                                達成済み
-                            </div>
-                            ${stamp.unlocked_date ? `
-                                <p class="text-xs text-gray-400 mt-1">${formatDate(stamp.unlocked_date)}</p>
-                            ` : ''}
-                        ` : `
-                            <div class="text-gray-400 text-sm">
-                                <div class="progress-bar h-2 mb-1">
-                                    <div class="progress-fill bg-gray-400" 
-                                         style="width: ${Math.min(100, (stamp.progress || 0) / stamp.target * 100)}%"></div>
-                                </div>
-                                <span class="text-xs">${stamp.progress || 0}/${stamp.target}</span>
-                            </div>
-                        `}
                     </div>
                 `).join('')}
             </div>
-
-            <!-- ヒント -->
-            <div class="bg-yellow-50 p-4 rounded-xl border border-yellow-200">
-                <h4 class="font-bold text-yellow-900 mb-2 flex items-center gap-2">
-                    <i class="fas fa-lightbulb"></i>
-                    スタンプを集めよう
-                </h4>
-                <p class="text-sm text-yellow-800">
-                    様々な活動を通じてスタンプを獲得できます。コレクションを増やしたり、テイスティング記録をつけたり、コミュニティに投稿したりして、すべてのスタンプをコンプリートしましょう！
-                </p>
-            </div>
         </div>
     `;
 }
 
-// ==================== ユーティリティ関数 ====================
-
-/**
- * レアリティラベルを取得
- */
-function getRarityLabel(rarity) {
-    const labels = {
-        common: 'コモン',
-        rare: 'レア',
-        epic: 'エピック',
-        legendary: 'レジェンダリー'
-    };
-    return labels[rarity] || 'コモン';
-}
-
-/**
- * 日付フォーマット
- */
-function formatDate(dateString) {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diff = now - date;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (minutes < 60) return `${minutes}分前`;
-    if (hours < 24) return `${hours}時間前`;
-    if (days < 7) return `${days}日前`;
-    
-    return `${date.getMonth() + 1}/${date.getDate()}`;
-}
-
-/**
- * 日本酒カードをレンダリング
- */
-function renderSakeCard(sake) {
-    return `
-        <div class="character-card rarity-${sake.character_rarity}" data-rarity="${sake.character_rarity}" onclick="showSakeDetail('${sake.id}')">
-            <div class="relative">
-                <img src="${sake.character_image}" alt="${sake.character_name}" class="character-image">
-                <button class="favorite-btn ${sake.favorite ? 'active' : ''}" 
-                        onclick="event.stopPropagation(); toggleFavorite('${sake.id}')">
-                    <i class="fas fa-heart"></i>
-                </button>
-                <div class="absolute top-2 left-2">
-                    <span class="rarity-badge ${sake.character_rarity}">${getRarityLabel(sake.character_rarity)}</span>
-                </div>
-                <div class="absolute bottom-2 left-2">
-                    <span class="level-badge">Lv.${sake.character_level}</span>
-                </div>
-            </div>
-            <div class="p-3">
-                <h4 class="font-bold text-sm mb-1 truncate">${sake.character_name}</h4>
-                <p class="text-xs text-gray-600 truncate">${sake.brand_name}</p>
-                <p class="text-xs text-gray-500 truncate">${sake.brewery_name}</p>
-                <div class="exp-bar mt-2">
-                    <div class="exp-fill" style="width: ${sake.character_exp}%"></div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// ==================== コミュニティタブコンテンツ ====================
+// ==================== コミュニティタブ ====================
 
 function renderCommunityTab() {
     const posts = dataManager.getCommunityPosts();
-
+    
     return `
-        <div class="space-y-6 fade-in">
-            <!-- ヘッダー -->
-            <div class="flex items-center justify-between">
-                <h3 class="text-xl font-bold">推し酒コミュニティ</h3>
-                <button onclick="showCreatePostModal()" 
-                        class="btn btn-primary text-white px-4 py-2 rounded-lg text-sm">
-                    <i class="fas fa-plus mr-1"></i>
-                    投稿
-                </button>
+        <div class="space-y-6">
+            <div class="bg-gradient-to-r from-green-600 to-emerald-600 text-white p-4 rounded-xl">
+                <h3 class="text-xl font-bold mb-1">推し酒コミュニティ</h3>
+                <p class="text-sm opacity-90">みんなの推し活を共有しよう</p>
             </div>
-
-            <!-- 投稿リスト -->
-            <div class="space-y-4">
-                ${posts.length > 0 ? posts.map(post => `
-                    <div class="bg-white p-4 rounded-xl shadow-md border border-gray-100 card">
-                        <!-- ユーザー情報 -->
-                        <div class="flex items-center gap-3 mb-3">
-                            <img src="${post.user.avatar}" alt="${post.user.name}" 
-                                 class="w-10 h-10 rounded-full">
-                            <div class="flex-1">
-                                <p class="font-semibold text-sm">${post.user.name}</p>
-                                <p class="text-xs text-gray-500">${formatDate(post.timestamp)}</p>
+            
+            <!-- 新規投稿ボタン -->
+            <button onclick="showNewPostForm()" 
+                    class="btn btn-primary text-white py-3 rounded-xl font-bold w-full">
+                <i class="fas fa-pen mr-2"></i>
+                新しい投稿を作成
+            </button>
+            
+            <!-- 投稿一覧 -->
+            ${posts.length > 0 ? `
+                <div class="space-y-4">
+                    ${posts.map(post => `
+                        <div class="card bg-white p-4 rounded-xl shadow-md">
+                            <div class="flex items-center gap-3 mb-3">
+                                <img src="${post.user.avatar}" 
+                                     class="w-10 h-10 rounded-full" 
+                                     alt="${post.user.name}">
+                                <div class="flex-1">
+                                    <p class="font-bold text-gray-800">${post.user.name}</p>
+                                    <p class="text-xs text-gray-500">${formatTimestamp(post.timestamp)}</p>
+                                </div>
+                            </div>
+                            
+                            <p class="text-gray-800 mb-3 whitespace-pre-line">${post.content}</p>
+                            
+                            ${post.image ? `
+                                <img src="${post.image}" 
+                                     class="w-full rounded-lg mb-3" 
+                                     alt="投稿画像">
+                            ` : ''}
+                            
+                            ${post.hashtags && post.hashtags.length > 0 ? `
+                                <div class="flex flex-wrap gap-2 mb-3">
+                                    ${post.hashtags.map(tag => `
+                                        <span class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
+                                            ${tag}
+                                        </span>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
+                            
+                            <div class="flex items-center gap-4 pt-3 border-t border-gray-200">
+                                <button class="flex items-center gap-2 text-gray-600 hover:text-red-600 transition">
+                                    <i class="far fa-heart"></i>
+                                    <span class="text-sm">${post.likes || 0}</span>
+                                </button>
+                                <button class="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition">
+                                    <i class="far fa-comment"></i>
+                                    <span class="text-sm">${post.comments || 0}</span>
+                                </button>
                             </div>
                         </div>
-
-                        <!-- 投稿内容 -->
-                        <p class="text-sm mb-3 whitespace-pre-wrap">${post.content}</p>
-
-                        <!-- 画像 -->
-                        ${post.image ? `
-                            <img src="${post.image}" alt="投稿画像" 
-                                 class="w-full rounded-lg mb-3">
-                        ` : ''}
-
-                        <!-- ハッシュタグ -->
-                        ${post.hashtags && post.hashtags.length > 0 ? `
-                            <div class="flex flex-wrap gap-2 mb-3">
-                                ${post.hashtags.map(tag => `
-                                    <span class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">
-                                        ${tag}
-                                    </span>
-                                `).join('')}
-                            </div>
-                        ` : ''}
-
-                        <!-- アクション -->
-                        <div class="flex items-center gap-4 text-gray-500 text-sm pt-3 border-t border-gray-100">
-                            <button class="flex items-center gap-1 hover:text-red-600 transition">
-                                <i class="far fa-heart"></i>
-                                <span>${post.likes}</span>
-                            </button>
-                            <button class="flex items-center gap-1 hover:text-blue-600 transition">
-                                <i class="far fa-comment"></i>
-                                <span>${post.comments}</span>
-                            </button>
-                            <button class="flex items-center gap-1 hover:text-green-600 transition">
-                                <i class="fas fa-share"></i>
-                            </button>
-                        </div>
-                    </div>
-                `).join('') : `
-                    <div class="text-center py-16">
-                        <i class="fas fa-comments text-6xl text-gray-300 mb-4"></i>
-                        <p class="text-gray-500 text-lg mb-2">まだ投稿がありません</p>
-                        <p class="text-gray-400 text-sm mb-6">最初の投稿を作成しましょう！</p>
-                        <button onclick="showCreatePostModal()" 
-                                class="btn btn-primary text-white px-6 py-3 rounded-xl">
-                            <i class="fas fa-plus mr-2"></i>
-                            投稿する
-                        </button>
-                    </div>
-                `}
-            </div>
+                    `).join('')}
+                </div>
+            ` : `
+                <div class="bg-gray-50 p-12 rounded-xl text-center">
+                    <i class="fas fa-comments text-gray-300 text-6xl mb-4"></i>
+                    <p class="text-gray-500 text-lg font-bold mb-2">まだ投稿がありません</p>
+                    <p class="text-gray-400 text-sm">最初の投稿を作成してみましょう！</p>
+                </div>
+            `}
         </div>
     `;
 }
 
-// ==================== テイスティングタブコンテンツ ====================
+// ==================== テイスティングタブ ====================
 
 function renderTastingTab() {
     const collection = dataManager.getCollection();
-
+    
     return `
-        <div class="space-y-6 fade-in">
-            <!-- ヘッダー -->
-            <div class="text-center">
-                <h3 class="text-2xl font-bold mb-2">テイスティング記録</h3>
-                <p class="text-gray-600 text-sm">味わいを記録して味覚プロファイルを作成</p>
+        <div class="space-y-6">
+            <div class="bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-4 rounded-xl">
+                <h3 class="text-xl font-bold mb-1">テイスティング記録</h3>
+                <p class="text-sm opacity-90">味覚を記録してプロファイルを作成</p>
             </div>
-
-            <!-- フォーム -->
-            <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-                <form id="tasting-form" onsubmit="handleTastingSubmit(event)">
-                    <!-- 銘柄選択 -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-semibold mb-2">銘柄</label>
-                        <select id="tasting-sake" required
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+            
+            <!-- テイスティングフォーム -->
+            <form id="tasting-form" class="space-y-4" onsubmit="submitTastingRecord(event)">
+                <!-- 銘柄選択 -->
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">
+                        銘柄を選択
+                    </label>
+                    ${collection.length > 0 ? `
+                        <select id="sake-select" 
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-red-600"
+                                required>
                             <option value="">選択してください</option>
                             ${collection.map(sake => `
                                 <option value="${sake.id}">${sake.brand_name} - ${sake.character_name}</option>
                             `).join('')}
                         </select>
-                    </div>
-
-                    <!-- 性別 -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-semibold mb-2">性別</label>
-                        <div class="grid grid-cols-2 gap-3">
-                            <label class="flex items-center justify-center px-4 py-3 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-red-500 transition">
-                                <input type="radio" name="gender" value="male" class="mr-2">
-                                <span>男性</span>
-                            </label>
-                            <label class="flex items-center justify-center px-4 py-3 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-red-500 transition">
-                                <input type="radio" name="gender" value="female" class="mr-2">
-                                <span>女性</span>
-                            </label>
+                    ` : `
+                        <div class="bg-gray-50 p-4 rounded-lg text-center text-gray-500">
+                            まずは日本酒を追加してください
                         </div>
+                    `}
+                </div>
+                
+                ${collection.length > 0 ? `
+                    <!-- 性別 -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">
+                            性別
+                        </label>
+                        <select id="gender-select" 
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg">
+                            <option value="male">男性</option>
+                            <option value="female">女性</option>
+                            <option value="other">その他</option>
+                        </select>
                     </div>
-
+                    
                     <!-- 年代 -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-semibold mb-2">年代</label>
-                        <select name="age_range" required
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
-                            <option value="">選択してください</option>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">
+                            年代
+                        </label>
+                        <select id="age-select" 
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg">
                             <option value="20s">20代</option>
                             <option value="30s">30代</option>
                             <option value="40s">40代</option>
@@ -680,12 +666,12 @@ function renderTastingTab() {
                             <option value="60s">60代以上</option>
                         </select>
                     </div>
-
+                    
                     <!-- 味覚評価 -->
-                    <div class="mb-6">
-                        <h4 class="font-semibold mb-4">味覚評価</h4>
+                    <div>
+                        <h4 class="text-sm font-bold text-gray-700 mb-4">味覚評価</h4>
                         <div class="space-y-4">
-                            ${['sweetness', 'acidity', 'umami', 'bitterness', 'aroma'].map(attr => {
+                            ${['sweetness', 'acidity', 'umami', 'bitterness', 'aroma'].map((taste, index) => {
                                 const labels = {
                                     sweetness: '甘み',
                                     acidity: '酸味',
@@ -695,58 +681,80 @@ function renderTastingTab() {
                                 };
                                 return `
                                     <div>
-                                        <div class="flex justify-between mb-2">
-                                            <label class="text-sm font-medium">${labels[attr]}</label>
-                                            <span class="text-sm text-gray-500" id="${attr}-value">3</span>
+                                        <div class="flex items-center justify-between mb-2">
+                                            <label class="text-sm font-medium text-gray-700">
+                                                ${labels[taste]}
+                                            </label>
+                                            <span id="${taste}-value" class="text-sm font-bold text-red-600">3</span>
                                         </div>
-                                        <input type="range" name="${attr}" min="1" max="5" value="3" step="1"
-                                               oninput="document.getElementById('${attr}-value').textContent = this.value">
+                                        <input type="range" 
+                                               id="${taste}-slider"
+                                               min="1" 
+                                               max="5" 
+                                               value="3" 
+                                               step="1"
+                                               oninput="document.getElementById('${taste}-value').textContent = this.value">
                                     </div>
                                 `;
                             }).join('')}
                         </div>
                     </div>
-
+                    
+                    <!-- メモ -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">
+                            メモ（任意）
+                        </label>
+                        <textarea id="tasting-notes" 
+                                  rows="3" 
+                                  class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg"
+                                  placeholder="感想を記入してください..."></textarea>
+                    </div>
+                    
                     <!-- 送信ボタン -->
                     <button type="submit" 
-                            class="w-full btn btn-primary text-white py-4 rounded-xl text-lg font-bold">
+                            class="btn btn-primary text-white py-3 rounded-xl font-bold w-full">
                         <i class="fas fa-save mr-2"></i>
                         記録する
                     </button>
-                </form>
-            </div>
-
-            <!-- レーダーチャート -->
-            <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-                <h4 class="font-bold text-lg mb-4 text-center">味覚プロファイル</h4>
-                <canvas id="tasting-chart" class="max-w-sm mx-auto"></canvas>
-            </div>
+                ` : ''}
+            </form>
+            
+            <!-- レーダーチャートプレビュー -->
+            ${collection.length > 0 ? `
+                <div class="bg-white p-4 rounded-xl shadow-md">
+                    <h4 class="text-sm font-bold text-gray-700 mb-4">味覚プロファイル</h4>
+                    <canvas id="tasting-chart" width="300" height="300"></canvas>
+                </div>
+            ` : ''}
         </div>
     `;
 }
 
-// ==================== AI診断タブコンテンツ ====================
+// ==================== AI診断タブ ====================
 
 function renderDiagnosisTab() {
     const profile = dataManager.getUserProfile();
     const collection = dataManager.getCollection();
-
+    
     return `
-        <div class="space-y-6 fade-in">
-            <!-- ヘッダー -->
-            <div class="text-center">
-                <h3 class="text-2xl font-bold mb-2">AI味覚診断</h3>
-                <p class="text-gray-600 text-sm">あなたの好みに合った日本酒を推薦</p>
+        <div class="space-y-6">
+            <div class="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-4 rounded-xl">
+                <h3 class="text-xl font-bold mb-1">AI診断・推薦</h3>
+                <p class="text-sm opacity-90">あなたの味覚プロファイル</p>
             </div>
-
+            
             <!-- 味覚プロファイル -->
-            <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-                <h4 class="font-bold text-lg mb-4">あなたの味覚プロファイル</h4>
-                <canvas id="profile-chart" class="max-w-sm mx-auto mb-6"></canvas>
-
-                <!-- プロファイル調整 -->
-                <div class="space-y-3">
-                    ${Object.keys(profile.taste_profile).map(key => {
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h4 class="font-bold text-gray-800 mb-4">現在の味覚プロファイル</h4>
+                <canvas id="profile-chart" width="300" height="300"></canvas>
+            </div>
+            
+            <!-- プロファイル調整 -->
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h4 class="font-bold text-gray-800 mb-4">プロファイルを調整</h4>
+                <div class="space-y-4">
+                    ${['sweetness', 'acidity', 'umami', 'bitterness', 'aroma'].map(taste => {
                         const labels = {
                             sweetness: '甘み',
                             acidity: '酸味',
@@ -754,109 +762,112 @@ function renderDiagnosisTab() {
                             bitterness: '苦味',
                             aroma: '香り'
                         };
+                        const value = profile.taste_profile[taste] || 3;
                         return `
                             <div>
-                                <div class="flex justify-between mb-1">
-                                    <label class="text-sm font-medium">${labels[key]}</label>
-                                    <span class="text-sm text-gray-500" id="profile-${key}-value">${profile.taste_profile[key]}</span>
+                                <div class="flex items-center justify-between mb-2">
+                                    <label class="text-sm font-medium text-gray-700">
+                                        ${labels[taste]}
+                                    </label>
+                                    <span id="profile-${taste}-value" class="text-sm font-bold text-red-600">${value}</span>
                                 </div>
-                                <input type="range" id="profile-${key}" min="1" max="5" 
-                                       value="${profile.taste_profile[key]}" step="1"
-                                       oninput="updateProfileValue('${key}', this.value)">
+                                <input type="range" 
+                                       id="profile-${taste}-slider"
+                                       min="1" 
+                                       max="5" 
+                                       value="${value}" 
+                                       step="1"
+                                       oninput="updateProfileSlider('${taste}', this.value)">
                             </div>
                         `;
                     }).join('')}
                 </div>
-
                 <button onclick="saveProfile()" 
-                        class="w-full btn btn-primary text-white py-3 rounded-xl mt-4">
+                        class="btn btn-primary text-white py-3 rounded-xl font-bold w-full mt-4">
                     <i class="fas fa-save mr-2"></i>
                     プロファイルを保存
                 </button>
             </div>
-
+            
             <!-- AI推薦 -->
-            <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-                <h4 class="font-bold text-lg mb-4 flex items-center gap-2">
-                    <i class="fas fa-magic text-purple-600"></i>
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h4 class="font-bold text-gray-800 mb-4">
+                    <i class="fas fa-magic text-purple-600 mr-2"></i>
                     AI推薦
                 </h4>
-                
                 ${collection.length > 0 ? `
                     <div class="space-y-3">
-                        ${getRecommendations(profile, collection).map(rec => `
-                            <div class="flex items-center gap-3 p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200 cursor-pointer hover:shadow-md transition"
-                                 onclick="showSakeDetail('${rec.sake.id}')">
-                                <img src="${rec.sake.character_image}" alt="${rec.sake.character_name}"
-                                     class="w-16 h-16 object-cover rounded-lg">
+                        ${getRecommendedSakes(profile, collection).map(sake => `
+                            <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                                 onclick="showSakeDetail('${sake.id}')">
+                                <img src="${sake.character_image}" 
+                                     class="w-16 h-16 rounded-lg object-cover"
+                                     alt="${sake.character_name}">
                                 <div class="flex-1">
-                                    <p class="font-semibold text-sm">${rec.sake.character_name}</p>
-                                    <p class="text-xs text-gray-600 mb-1">${rec.sake.brand_name}</p>
-                                    <div class="flex items-center gap-2">
-                                        <div class="flex-1 bg-gray-200 rounded-full h-2">
-                                            <div class="bg-gradient-to-r from-purple-600 to-pink-600 rounded-full h-2" 
-                                                 style="width: ${rec.match}%"></div>
+                                    <p class="font-bold text-gray-800">${sake.character_name}</p>
+                                    <p class="text-sm text-gray-600">${sake.brand_name}</p>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <div class="flex items-center gap-1">
+                                            ${Array(5).fill(0).map((_, i) => `
+                                                <i class="fas fa-star text-xs ${i < sake.matchScore ? 'text-yellow-500' : 'text-gray-300'}"></i>
+                                            `).join('')}
                                         </div>
-                                        <span class="text-xs font-semibold text-purple-600">${rec.match}%</span>
+                                        <span class="text-xs font-bold text-purple-600">
+                                            ${Math.round(sake.matchScore * 20)}% マッチ
+                                        </span>
                                     </div>
                                 </div>
                             </div>
                         `).join('')}
                     </div>
                 ` : `
-                    <div class="text-center py-8 text-gray-400">
-                        <i class="fas fa-flask text-4xl mb-2"></i>
-                        <p>コレクションがありません</p>
-                        <p class="text-sm">日本酒を追加すると推薦が表示されます</p>
+                    <div class="text-center py-8">
+                        <i class="fas fa-flask text-gray-300 text-4xl mb-3"></i>
+                        <p class="text-gray-500">コレクションに日本酒を追加すると<br>AI推薦が表示されます</p>
                     </div>
                 `}
-            </div>
-
-            <!-- ヒント -->
-            <div class="bg-purple-50 p-4 rounded-xl border border-purple-200">
-                <h4 class="font-bold text-purple-900 mb-2 flex items-center gap-2">
-                    <i class="fas fa-lightbulb"></i>
-                    AIのおすすめ
-                </h4>
-                <p class="text-sm text-purple-800">
-                    テイスティング記録を増やすことで、AIがより正確にあなたの好みを学習し、最適な日本酒を推薦できるようになります。
-                </p>
             </div>
         </div>
     `;
 }
 
-// ==================== AI推薦アルゴリズム ====================
+// ==================== ユーティリティ関数 ====================
 
-function getRecommendations(profile, collection) {
-    if (collection.length === 0) return [];
-
-    const recommendations = collection.map(sake => {
-        const match = calculateMatch(profile.taste_profile, sake.taste_profile);
-        return { sake, match };
-    });
-
-    // マッチ度でソート
-    recommendations.sort((a, b) => b.match - a.match);
-
-    // 上位3つを返す
-    return recommendations.slice(0, 3);
+function formatTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+    
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if (minutes < 1) return '今';
+    if (minutes < 60) return `${minutes}分前`;
+    if (hours < 24) return `${hours}時間前`;
+    if (days < 7) return `${days}日前`;
+    
+    return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
 }
 
-function calculateMatch(userProfile, sakeProfile) {
-    if (!sakeProfile) return 0;
-
-    const keys = ['sweetness', 'acidity', 'umami', 'bitterness', 'aroma'];
-    let totalDiff = 0;
-
-    keys.forEach(key => {
-        const diff = Math.abs((userProfile[key] || 3) - (sakeProfile[key] || 3));
-        totalDiff += diff;
+function getRecommendedSakes(profile, collection) {
+    // 味覚プロファイルに基づいてマッチングスコアを計算
+    const scoredSakes = collection.map(sake => {
+        let score = 0;
+        const profileTaste = profile.taste_profile;
+        const sakeTaste = sake.taste_profile;
+        
+        Object.keys(profileTaste).forEach(key => {
+            const diff = Math.abs(profileTaste[key] - sakeTaste[key]);
+            score += (5 - diff); // 差が小さいほど高スコア
+        });
+        
+        return {
+            ...sake,
+            matchScore: Math.min(5, Math.round(score / 5))
+        };
     });
-
-    // 最大差分は20（各属性で最大4の差×5属性）
-    const maxDiff = 20;
-    const match = Math.max(0, Math.round(((maxDiff - totalDiff) / maxDiff) * 100));
-
-    return match;
+    
+    // スコアでソートして上位3件を返す
+    return scoredSakes.sort((a, b) => b.matchScore - a.matchScore).slice(0, 3);
 }
