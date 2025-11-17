@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>推し酒 - 日本酒コレクション管理アプリ</title>
+    
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js for radar charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=Noto+Serif+JP:wght@400;600&display=swap" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+    
+    <script>
+        // Tailwind config
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#DC2626',
+                        secondary: '#EC4899'
+                    },
+                    fontFamily: {
+                        'serif': ['Noto Serif JP', 'serif'],
+                        'sans': ['Noto Sans JP', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="font-sans bg-gray-50">
+    <!-- Splash Screen -->
+    <div id="splash-screen" class="fixed inset-0 bg-gradient-to-br from-red-600 to-pink-600 flex flex-col items-center justify-center z-50">
+        <i class="fas fa-wine-bottle text-white text-8xl mb-4 animate-pulse"></i>
+        <h1 class="text-white text-5xl font-serif mb-2">推し酒</h1>
+        <p class="text-white text-xl font-light tracking-wider">見つける、育てる、語り合う。</p>
+        <div class="mt-8">
+            <div class="w-10 h-10 border-4 border-white border-t-transparent border-solid rounded-full animate-spin"></div>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="app" class="hidden md:max-w-2xl md:mx-auto md:shadow-lg min-h-screen bg-white">
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-red-600 to-pink-600 text-white p-4 sticky top-0 z-20 shadow-md">
+            <h2 id="header-title" class="text-2xl font-bold">ホーム</h2>
+        </header>
+
+        <!-- Main Content -->
+        <main class="p-4 pb-20" id="main-content">
+            <!-- Tab content will be dynamically loaded here -->
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-200 shadow-xl z-30 md:static md:max-w-2xl md:mx-auto">
+            <div class="flex h-full max-w-lg mx-auto">
+                <button class="tab-btn flex-1 flex flex-col items-center justify-center text-xs px-1 pt-1 text-primary border-t-2 border-primary" data-tab="home">
+                    <i class="fas fa-home text-xl mb-0.5"></i>
+                    <span>ホーム</span>
+                </button>
+                <button class="tab-btn flex-1 flex flex-col items-center justify-center text-xs px-1 pt-1 text-gray-500" data-tab="camera">
+                    <i class="fas fa-camera text-xl mb-0.5"></i>
+                    <span>カメラ</span>
+                </button>
+                <button class="tab-btn flex-1 flex flex-col items-center justify-center text-xs px-1 pt-1 text-gray-500" data-tab="collection">
+                    <i class="fas fa-flask text-xl mb-0.5"></i>
+                    <span>図鑑</span>
+                </button>
+                <button class="tab-btn flex-1 flex flex-col items-center justify-center text-xs px-1 pt-1 text-gray-500" data-tab="stamps">
+                    <i class="fas fa-stamp text-xl mb-0.5"></i>
+                    <span>御酒印</span>
+                </button>
+                <button class="tab-btn flex-1 flex flex-col items-center justify-center text-xs px-1 pt-1 text-gray-500" data-tab="community">
+                    <i class="fas fa-users text-xl mb-0.5"></i>
+                    <span>交流</span>
+                </button>
+                <button class="tab-btn flex-1 flex flex-col items-center justify-center text-xs px-1 pt-1 text-gray-500" data-tab="tasting">
+                    <i class="fas fa-wine-glass-alt text-xl mb-0.5"></i>
+                    <span>テイスティング</span>
+                </button>
+                <button class="tab-btn flex-1 flex flex-col items-center justify-center text-xs px-1 pt-1 text-gray-500" data-tab="diagnosis">
+                    <i class="fas fa-brain text-xl mb-0.5"></i>
+                    <span>AI診断</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full relative" id="modal-content">
+            <button class="absolute top-3 right-3 text-gray-500 hover:text-primary p-2" onclick="closeModal()">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+            <div id="modal-body">
+                <!-- Modal content will be dynamically loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-xs space-y-2">
+        <!-- Toast messages will be dynamically added here -->
+    </div>
+
+    <!-- JavaScript -->
+    <script src="js/data.js"></script>
+    <script src="js/ai-generation.js"></script>
+    <script src="js/components.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
