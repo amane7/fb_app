@@ -1,56 +1,56 @@
 /**
  * 推し酒アプリ - メインアプリケーションロジック
- * タブ切り替え、イベント処理、アプリ初期化
+ * タブ切り替え、イベント処理、初期化
  */
 
-// ==================== グローバル変数 ====================
-let currentTab = 'home';
-let videoStream = null;
-let capturedImage = null;
+// ==================== 初期化 ====================
 
-// ==================== アプリ初期化 ====================
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('推し酒アプリ起動中...');
-    
-    // スプラッシュスクリーン
+    // スプラッシュスクリーンを2秒後に非表示
     setTimeout(() => {
         document.getElementById('splash-screen').style.display = 'none';
         document.getElementById('app').classList.remove('hidden');
         
-        // 初期化
-        initializeApp();
+        // 初期タブを表示
+        switchTab('home');
     }, 2000);
+    
+    // タブボタンのイベントリスナーを設定
+    setupTabListeners();
+    
+    // データが空の場合、サンプルデータを読み込むか確認
+    if (dataManager.getCollection().length === 0) {
+        setTimeout(() => {
+            const loadSample = confirm('サンプルデータを読み込みますか？\n（体験用のデータが追加されます）');
+            if (loadSample) {
+                dataManager.loadSampleData();
+                showToast('サンプルデータを読み込みました！', 'success');
+                switchTab('home');
+            }
+        }, 500);
+    }
 });
 
-function initializeApp() {
-    // サンプルデータのロード（初回のみ）
-    const collection = dataManager.getCollection();
-    if (collection.length === 0) {
-        dataManager.loadSampleData();
-        showToast('サンプルデータを読み込みました', 'success');
-    }
+// ==================== タブ切り替え ====================
 
-    // タブボタンのイベントリスナー
-    document.querySelectorAll('.tab-btn').forEach(btn => {
+function setupTabListeners() {
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    tabButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-            const tab = btn.dataset.tab;
+            const tab = btn.getAttribute('data-tab');
             switchTab(tab);
         });
     });
-
-    // 初期タブを表示
-    switchTab('home');
-    
-    console.log('アプリ初期化完了');
 }
 
-// ==================== タブ切り替え ====================
 function switchTab(tabName) {
     currentTab = tabName;
     
     // タブボタンのアクティブ状態を更新
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        if (btn.dataset.tab === tabName) {
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    tabButtons.forEach(btn => {
+        const btnTab = btn.getAttribute('data-tab');
+        if (btnTab === tabName) {
             btn.classList.add('text-primary', 'border-t-2', 'border-primary');
             btn.classList.remove('text-gray-500');
         } else {
@@ -58,7 +58,7 @@ function switchTab(tabName) {
             btn.classList.add('text-gray-500');
         }
     });
-
+    
     // ヘッダータイトルを更新
     const titles = {
         home: 'ホーム',
@@ -69,217 +69,222 @@ function switchTab(tabName) {
         tasting: 'テイスティング',
         diagnosis: 'AI診断'
     };
-    document.getElementById('header-title').textContent = titles[tabName];
-
+    document.getElementById('header-title').textContent = titles[tabName] || 'ホーム';
+    
     // コンテンツを更新
     const mainContent = document.getElementById('main-content');
-    mainContent.style.opacity = '0';
     
-    setTimeout(() => {
-        switch(tabName) {
-            case 'home':
-                mainContent.innerHTML = renderHomeTab();
-                break;
-            case 'camera':
-                mainContent.innerHTML = renderCameraTab();
-                initializeCamera();
-                break;
-            case 'collection':
-                mainContent.innerHTML = renderCollectionTab();
-                break;
-            case 'stamps':
-                mainContent.innerHTML = renderStampsTab();
-                break;
-            case 'community':
-                mainContent.innerHTML = renderCommunityTab();
-                break;
-            case 'tasting':
-                mainContent.innerHTML = renderTastingTab();
-                initializeTastingChart();
-                break;
-            case 'diagnosis':
-                mainContent.innerHTML = renderDiagnosisTab();
-                initializeProfileChart();
-                break;
-        }
-        
-        mainContent.style.opacity = '1';
-        window.scrollTo(0, 0);
-    }, 150);
+    switch (tabName) {
+        case 'home':
+            mainContent.innerHTML = renderHomeTab();
+            break;
+        case 'camera':
+            mainContent.innerHTML = renderCameraTab();
+            break;
+        case 'collection':
+            mainContent.innerHTML = renderCollectionTab();
+            break;
+        case 'stamps':
+            mainContent.innerHTML = renderStampsTab();
+            break;
+        case 'community':
+            mainContent.innerHTML = renderCommunityTab();
+            break;
+        case 'tasting':
+            mainContent.innerHTML = renderTastingTab();
+            // テイスティングチャートを初期化
+            setTimeout(() => {
+                const canvas = document.getElementById('tasting-chart');
+                if (canvas) {
+                    createRadarChart('tasting-chart', {
+                        sweetness: 3,
+                        acidity: 3,
+                        umami: 3,
+                        bitterness: 3,
+                        aroma: 3
+                    });
+                }
+            }, 100);
+            break;
+        case 'diagnosis':
+            mainContent.innerHTML = renderDiagnosisTab();
+            // プロファイルチャートを初期化
+            setTimeout(() => {
+                const profile = dataManager.getUserProfile();
+                const canvas = document.getElementById('profile-chart');
+                if (canvas) {
+                    createRadarChart('profile-chart', profile.taste_profile);
+                }
+            }, 100);
+            break;
+    }
+    
+    // トップにスクロール
+    mainContent.scrollTop = 0;
 }
 
 // ==================== カメラ機能 ====================
-function initializeCamera() {
-    // 初期化処理（必要に応じて）
-}
 
-async function openCamera() {
+async function startCamera() {
     try {
-        const container = document.getElementById('camera-preview-container');
+        const video = document.getElementById('camera-video');
+        const placeholder = document.getElementById('camera-placeholder');
+        const previewImage = document.getElementById('preview-image');
         
         // 既存のストリームを停止
-        if (videoStream) {
-            videoStream.getTracks().forEach(track => track.stop());
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
         }
-
+        
         // カメラストリームを取得
-        videoStream = await navigator.mediaDevices.getUserMedia({
-            video: {  facingMode: 'environment' },
-            audio: false
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: 'environment', // 背面カメラを優先
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+            }
         });
-
-        // ビデオ要素を作成
-        container.innerHTML = `
-            <video id="camera-video" autoplay playsinline class="w-full h-auto"></video>
-            <div class="camera-overlay"></div>
-            <button onclick="capturePhoto()" 
-                    class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white text-red-600 px-6 py-3 rounded-full shadow-lg font-bold btn">
-                <i class="fas fa-camera mr-2"></i>
-                撮影
-            </button>
-        `;
-
-        const video = document.getElementById('camera-video');
-        video.srcObject = videoStream;
-
+        
+        video.srcObject = cameraStream;
+        video.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+        previewImage.classList.add('hidden');
+        
+        // 生成ボタンを有効化
+        document.getElementById('generate-btn').disabled = false;
+        
+        showToast('カメラを起動しました', 'success');
     } catch (error) {
         console.error('Camera error:', error);
         showToast('カメラの起動に失敗しました', 'error');
     }
 }
 
-function capturePhoto() {
-    const video = document.getElementById('camera-video');
-    if (!video) return;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
-
-    capturedImage = canvas.toDataURL('image/jpeg');
-    
-    // ストリームを停止
-    if (videoStream) {
-        videoStream.getTracks().forEach(track => track.stop());
-        videoStream = null;
-    }
-
-    // プレビューを表示
-    displayCapturedImage(capturedImage);
-}
-
-function displayCapturedImage(imageData) {
-    const container = document.getElementById('camera-preview-container');
-    container.innerHTML = `
-        <img src="${imageData}" alt="撮影画像" class="w-full h-auto rounded-xl">
-    `;
-
-    // 生成ボタンを有効化
-    const generateBtn = document.getElementById('generate-btn');
-    if (generateBtn) {
-        generateBtn.disabled = false;
-    }
-
-    showToast('画像を取得しました', 'success');
-}
-
 function handleFileSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
-
+    
     const reader = new FileReader();
     reader.onload = (e) => {
+        const previewImage = document.getElementById('preview-image');
+        const video = document.getElementById('camera-video');
+        const placeholder = document.getElementById('camera-placeholder');
+        
+        // ストリームを停止
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            cameraStream = null;
+        }
+        
+        previewImage.src = e.target.result;
+        previewImage.classList.remove('hidden');
+        video.classList.add('hidden');
+        placeholder.classList.add('hidden');
+        
         capturedImage = e.target.result;
-        displayCapturedImage(capturedImage);
+        
+        // 生成ボタンを有効化
+        document.getElementById('generate-btn').disabled = false;
+        
+        showToast('画像を読み込みました', 'success');
     };
     reader.readAsDataURL(file);
 }
 
-// ==================== AI生成機能 ====================
-async function generateCharacter() {
-    if (!capturedImage) {
-        showToast('画像を選択してください', 'error');
-        return;
-    }
-
-    const generateBtn = document.getElementById('generate-btn');
-    const statusDiv = document.getElementById('generation-status');
-    const resultDiv = document.getElementById('generation-result');
-
+async function captureAndGenerate() {
     try {
-        // ボタンを無効化
-        generateBtn.disabled = true;
-        statusDiv.classList.remove('hidden');
-        resultDiv.classList.add('hidden');
-
-        // AI生成実行
-        const result = await aiGenerationService.generateCharacterFromLabel(capturedImage);
-
+        let imageData;
+        
+        // ビデオからキャプチャするか、既存の画像を使用
+        if (cameraStream) {
+            const video = document.getElementById('camera-video');
+            const canvas = document.getElementById('camera-canvas');
+            const context = canvas.getContext('2d');
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+            
+            imageData = canvas.toDataURL('image/jpeg', 0.8);
+            
+            // プレビューを表示
+            const previewImage = document.getElementById('preview-image');
+            previewImage.src = imageData;
+            previewImage.classList.remove('hidden');
+            video.classList.add('hidden');
+            
+            // カメラストリームを停止
+            cameraStream.getTracks().forEach(track => track.stop());
+            cameraStream = null;
+        } else if (capturedImage) {
+            imageData = capturedImage;
+        } else {
+            showToast('画像を選択してください', 'error');
+            return;
+        }
+        
+        // 画像を圧縮
+        imageData = await compressImage(imageData, 1024, 1024);
+        
+        // 生成ボタンを無効化
+        document.getElementById('generate-btn').disabled = true;
+        document.getElementById('generate-btn').innerHTML = `
+            <div class="spinner spinner-sm mr-2"></div>
+            生成中... (30-60秒)
+        `;
+        
+        // AI生成を実行
+        const result = await aiGenerationService.generateCharacterFromLabel(imageData);
+        
         // 結果を表示
-        displayGenerationResult(result);
-
+        showGenerationResult(result);
+        
+        // 生成ボタンを元に戻す
+        document.getElementById('generate-btn').innerHTML = `
+            <i class="fas fa-magic mr-2"></i>
+            キャラクター生成開始
+        `;
+        
     } catch (error) {
         console.error('Generation error:', error);
-        showToast('生成に失敗しました', 'error');
-    } finally {
-        generateBtn.disabled = false;
-        statusDiv.classList.add('hidden');
+        showToast('生成に失敗しました。再試行してください。', 'error');
+        
+        // 生成ボタンを元に戻す
+        document.getElementById('generate-btn').disabled = false;
+        document.getElementById('generate-btn').innerHTML = `
+            <i class="fas fa-magic mr-2"></i>
+            キャラクター生成開始
+        `;
     }
 }
 
-function displayGenerationResult(result) {
+function showGenerationResult(result) {
     const resultDiv = document.getElementById('generation-result');
-    
+    resultDiv.classList.remove('hidden');
     resultDiv.innerHTML = `
-        <div class="bg-white p-6 rounded-xl shadow-lg border-2 rarity-${result.character_rarity}-glow scale-in">
-            <!-- キャラクター画像 -->
-            <div class="relative mb-4">
-                <img src="${result.character_image}" alt="${result.character_name}"
-                     class="w-full rounded-xl">
-                <div class="absolute top-4 left-4">
-                    <span class="rarity-badge ${result.character_rarity} text-lg px-4 py-2">
-                        ${getRarityLabel(result.character_rarity)}
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <i class="fas fa-sparkles text-yellow-500"></i>
+                生成完了！
+            </h3>
+            
+            <div class="rarity-${result.character_rarity} p-4 rounded-xl mb-4">
+                <img src="${result.character_image}" 
+                     class="w-full rounded-lg shadow-md mb-3"
+                     alt="${result.character_name}">
+                <div class="text-center">
+                    <h4 class="text-2xl font-bold text-gray-800 mb-2">${result.character_name}</h4>
+                    <span class="rarity-badge ${result.character_rarity}">
+                        ${result.character_rarity.toUpperCase()}
                     </span>
                 </div>
             </div>
-
-            <!-- キャラクター情報 -->
-            <div class="text-center mb-4">
-                <h3 class="text-2xl font-bold mb-2">${result.character_name}</h3>
-                <p class="text-gray-600">AI生成キャラクター</p>
+            
+            <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                <h5 class="font-bold text-gray-700 mb-2">味覚プロファイル</h5>
+                <canvas id="generated-chart" width="250" height="250"></canvas>
             </div>
-
-            <!-- 味覚プロファイル -->
-            <div class="mb-4">
-                <h4 class="font-bold mb-2">推定味覚プロファイル</h4>
-                <div class="grid grid-cols-5 gap-2 text-center text-xs">
-                    <div>
-                        <div class="text-2xl mb-1">${result.taste_profile.sweetness}</div>
-                        <div class="text-gray-600">甘み</div>
-                    </div>
-                    <div>
-                        <div class="text-2xl mb-1">${result.taste_profile.acidity}</div>
-                        <div class="text-gray-600">酸味</div>
-                    </div>
-                    <div>
-                        <div class="text-2xl mb-1">${result.taste_profile.umami}</div>
-                        <div class="text-gray-600">旨み</div>
-                    </div>
-                    <div>
-                        <div class="text-2xl mb-1">${result.taste_profile.bitterness}</div>
-                        <div class="text-gray-600">苦味</div>
-                    </div>
-                    <div>
-                        <div class="text-2xl mb-1">${result.taste_profile.aroma}</div>
-                        <div class="text-gray-600">香り</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- アクションボタン -->
+            
             <div class="grid grid-cols-2 gap-3">
                 <button onclick="addToCollection()" 
                         class="btn btn-primary text-white py-3 rounded-xl font-bold">
@@ -287,396 +292,310 @@ function displayGenerationResult(result) {
                     コレクションに追加
                 </button>
                 <button onclick="regenerateCharacter()" 
-                        class="bg-gray-100 text-gray-700 py-3 rounded-xl font-bold btn">
+                        class="btn bg-gray-600 text-white py-3 rounded-xl font-bold">
                     <i class="fas fa-redo mr-2"></i>
                     再生成
                 </button>
             </div>
         </div>
     `;
-
-    resultDiv.classList.remove('hidden');
     
-    // 結果をグローバル変数に保存
-    window.lastGeneratedCharacter = result;
+    // チャートを描画
+    setTimeout(() => {
+        createRadarChart('generated-chart', result.taste_profile, result.character_name);
+    }, 100);
+    
+    // 結果をスクロール表示
+    resultDiv.scrollIntoView({ behavior: 'smooth' });
 }
 
 function addToCollection() {
-    const result = window.lastGeneratedCharacter;
-    if (!result) return;
-
-    // モーダルで詳細情報を入力
-    showModal(`
-        <h3 class="text-xl font-bold mb-4">コレクションに追加</h3>
-        <form id="add-sake-form" onsubmit="handleAddSake(event)">
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-semibold mb-1">銘柄名 *</label>
-                    <input type="text" name="brand_name" required
-                           class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold mb-1">酒蔵名 *</label>
-                    <input type="text" name="brewery_name" required
-                           class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold mb-1">地域</label>
-                    <input type="text" name="region"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold mb-1">種類</label>
-                    <select name="sake_type" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                        <option value="純米大吟醸">純米大吟醸</option>
-                        <option value="大吟醸">大吟醸</option>
-                        <option value="純米吟醸">純米吟醸</option>
-                        <option value="吟醸">吟醸</option>
-                        <option value="純米">純米</option>
-                        <option value="本醸造">本醸造</option>
-                    </select>
-                </div>
-                <button type="submit" class="w-full btn btn-primary text-white py-3 rounded-xl font-bold">
-                    追加する
-                </button>
-            </div>
-        </form>
-    `);
-}
-
-function handleAddSake(event) {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    const result = window.lastGeneratedCharacter;
-
-    const sakeData = {
-        brand_name: formData.get('brand_name'),
-        brewery_name: formData.get('brewery_name'),
-        region: formData.get('region') || '未設定',
-        sake_type: formData.get('sake_type'),
+    const history = aiGenerationService.getHistory();
+    if (history.length === 0) {
+        showToast('追加するキャラクターがありません', 'error');
+        return;
+    }
+    
+    const latestGeneration = history[history.length - 1];
+    
+    // ダイアログで情報を入力
+    const brandName = prompt('銘柄名を入力してください:', '');
+    if (!brandName) return;
+    
+    const breweryName = prompt('酒蔵名を入力してください:', '');
+    if (!breweryName) return;
+    
+    // コレクションに追加
+    const newSake = dataManager.addSake({
+        brand_name: brandName,
+        brewery_name: breweryName,
+        region: '未設定',
+        sake_type: '純米大吟醸',
         alcohol_content: 15,
         rice_polishing_ratio: 50,
-        character_name: result.character_name,
-        character_rarity: result.character_rarity,
-        character_image: result.character_image,
-        taste_profile: result.taste_profile
-    };
-
-    dataManager.addSake(sakeData);
-    closeModal();
-    showToast('コレクションに追加しました！', 'success');
+        character_name: latestGeneration.character_name,
+        character_rarity: latestGeneration.character_rarity,
+        character_image: latestGeneration.character_image,
+        taste_profile: latestGeneration.taste_profile,
+        user_rating: 0,
+        user_notes: ''
+    });
+    
+    showToast(`${newSake.character_name}をコレクションに追加しました！`, 'success');
     
     // 図鑑タブに切り替え
     setTimeout(() => {
         switchTab('collection');
-    }, 1000);
+    }, 1500);
 }
 
 function regenerateCharacter() {
-    generateCharacter();
+    captureAndGenerate();
 }
 
-// ==================== コレクション機能 ====================
-function filterCollection(rarity) {
-    const collection = dataManager.getCollection();
-    const grid = document.getElementById('collection-grid');
-    
-    // フィルターボタンのアクティブ状態を更新
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        if (btn.dataset.filter === rarity) {
-            btn.classList.add('active', 'bg-red-600', 'text-white');
-            btn.classList.remove('bg-gray-100', 'text-gray-700');
-        } else {
-            btn.classList.remove('active', 'bg-red-600', 'text-white');
-            btn.classList.add('bg-gray-100', 'text-gray-700');
-        }
-    });
+// ==================== 図鑑機能 ====================
 
-    // フィルタリング
-    let filtered = collection;
-    if (rarity !== 'all') {
-        filtered = collection.filter(sake => sake.character_rarity === rarity);
-    }
-
-    // グリッドを更新
-    grid.innerHTML = `
-        <div class="grid grid-cols-2 gap-4">
-            ${filtered.map(sake => renderSakeCard(sake)).join('')}
-        </div>
-    `;
+function filterByRarity(rarity) {
+    localStorage.setItem('rarity_filter', rarity);
+    switchTab('collection');
 }
 
 function toggleFavorite(id) {
     const sake = dataManager.toggleFavorite(id);
     if (sake) {
         showToast(sake.favorite ? 'お気に入りに追加しました' : 'お気に入りから削除しました', 'success');
-        
         // 現在のタブを再描画
-        if (currentTab === 'collection') {
-            filterCollection(document.querySelector('.filter-btn.active')?.dataset.filter || 'all');
-        } else if (currentTab === 'home') {
-            switchTab('home');
-        }
+        switchTab(currentTab);
     }
 }
 
 function showSakeDetail(id) {
     const sake = dataManager.getSakeById(id);
     if (!sake) return;
-
-    showModal(`
-        <div class="max-h-[80vh] overflow-y-auto">
-            <!-- キャラクター画像 -->
-            <div class="relative mb-4 -mx-6 -mt-6">
-                <img src="${sake.character_image}" alt="${sake.character_name}"
-                     class="w-full h-64 object-cover">
-                <div class="absolute top-4 left-4">
-                    <span class="rarity-badge ${sake.character_rarity} text-lg px-4 py-2">
-                        ${getRarityLabel(sake.character_rarity)}
+    
+    const modalContent = `
+        <div class="space-y-4">
+            <div class="rarity-${sake.character_rarity} p-4 rounded-xl">
+                <img src="${sake.character_image}" 
+                     class="w-full rounded-lg shadow-md mb-3"
+                     alt="${sake.character_name}">
+                <div class="text-center">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">${sake.character_name}</h3>
+                    <span class="rarity-badge ${sake.character_rarity}">
+                        ${sake.character_rarity.toUpperCase()}
                     </span>
-                </div>
-                <div class="absolute top-4 right-4">
-                    <button class="favorite-btn ${sake.favorite ? 'active' : ''}" 
-                            onclick="toggleFavorite('${sake.id}'); showSakeDetail('${sake.id}')">
-                        <i class="fas fa-heart"></i>
-                    </button>
+                    <div class="level-badge mt-3">
+                        <i class="fas fa-star"></i>
+                        <span>Level ${sake.character_level}</span>
+                    </div>
                 </div>
             </div>
-
-            <!-- 基本情報 -->
-            <div class="mb-4">
-                <h3 class="text-2xl font-bold mb-1">${sake.character_name}</h3>
-                <p class="text-lg text-gray-700 mb-1">${sake.brand_name}</p>
-                <p class="text-sm text-gray-500">${sake.brewery_name} • ${sake.region}</p>
-            </div>
-
-            <!-- レベルと経験値 -->
-            <div class="bg-gradient-to-r from-red-50 to-pink-50 p-4 rounded-lg mb-4">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="font-semibold">レベル ${sake.character_level}</span>
-                    <span class="text-sm text-gray-600">EXP: ${sake.character_exp}/100</span>
+            
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <span class="text-gray-600">銘柄</span>
+                    <span class="font-bold text-gray-800">${sake.brand_name}</span>
                 </div>
-                <div class="exp-bar">
-                    <div class="exp-fill" style="width: ${sake.character_exp}%"></div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">酒蔵</span>
+                    <span class="font-bold text-gray-800">${sake.brewery_name}</span>
                 </div>
-            </div>
-
-            <!-- 日本酒情報 -->
-            <div class="grid grid-cols-2 gap-3 mb-4">
-                <div class="bg-gray-50 p-3 rounded-lg">
-                    <p class="text-xs text-gray-500 mb-1">種類</p>
-                    <p class="font-semibold text-sm">${sake.sake_type || '未設定'}</p>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">地域</span>
+                    <span class="font-bold text-gray-800">${sake.region}</span>
                 </div>
-                <div class="bg-gray-50 p-3 rounded-lg">
-                    <p class="text-xs text-gray-500 mb-1">アルコール度数</p>
-                    <p class="font-semibold text-sm">${sake.alcohol_content || '-'}%</p>
-                </div>
-                <div class="bg-gray-50 p-3 rounded-lg">
-                    <p class="text-xs text-gray-500 mb-1">精米歩合</p>
-                    <p class="font-semibold text-sm">${sake.rice_polishing_ratio || '-'}%</p>
-                </div>
-                <div class="bg-gray-50 p-3 rounded-lg">
-                    <p class="text-xs text-gray-500 mb-1">収集日</p>
-                    <p class="font-semibold text-sm">${formatDate(sake.collected_date)}</p>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">種類</span>
+                    <span class="font-bold text-gray-800">${sake.sake_type}</span>
                 </div>
             </div>
-
-            <!-- 味覚プロファイル -->
-            ${sake.taste_profile ? `
-                <div class="mb-4">
-                    <h4 class="font-bold mb-2">味覚プロファイル</h4>
-                    <canvas id="detail-chart"></canvas>
-                </div>
-            ` : ''}
-
-            <!-- ユーザーメモ -->
+            
+            <div class="bg-gray-50 p-4 rounded-lg">
+                <h5 class="font-bold text-gray-700 mb-3">味覚プロファイル</h5>
+                <canvas id="detail-chart" width="250" height="250"></canvas>
+            </div>
+            
             ${sake.user_notes ? `
-                <div class="bg-blue-50 p-3 rounded-lg mb-4">
-                    <h4 class="font-bold text-sm mb-1">メモ</h4>
-                    <p class="text-sm text-gray-700">${sake.user_notes}</p>
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <h5 class="font-bold text-blue-800 mb-2">メモ</h5>
+                    <p class="text-blue-700 text-sm">${sake.user_notes}</p>
                 </div>
             ` : ''}
-
-            <!-- アクションボタン -->
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="closeModal(); switchTab('tasting')" 
-                        class="btn bg-blue-600 text-white py-3 rounded-xl font-bold">
-                    <i class="fas fa-wine-glass-alt mr-2"></i>
-                    テイスティング
-                </button>
-                <button onclick="deleteSake('${sake.id}')" 
-                        class="btn bg-red-600 text-white py-3 rounded-xl font-bold">
-                    <i class="fas fa-trash mr-2"></i>
-                    削除
-                </button>
-            </div>
+            
+            <button onclick="toggleFavorite('${sake.id}'); closeModal(); switchTab('${currentTab}');"
+                    class="btn ${sake.favorite ? 'bg-gray-600' : 'bg-red-600'} text-white py-3 rounded-xl font-bold w-full">
+                <i class="fas fa-heart mr-2"></i>
+                ${sake.favorite ? 'お気に入りから削除' : 'お気に入りに追加'}
+            </button>
         </div>
-    `);
-
-    // レーダーチャートを描画
-    if (sake.taste_profile) {
-        setTimeout(() => {
-            renderRadarChart('detail-chart', sake.taste_profile);
-        }, 100);
-    }
-}
-
-function deleteSake(id) {
-    if (!confirm('本当に削除しますか？')) return;
+    `;
     
-    dataManager.deleteSake(id);
-    closeModal();
-    showToast('削除しました', 'success');
+    showModal(modalContent);
     
-    if (currentTab === 'collection') {
-        filterCollection(document.querySelector('.filter-btn.active')?.dataset.filter || 'all');
-    }
-}
-
-// ==================== コミュニティ機能 ====================
-function showCreatePostModal() {
-    showModal(`
-        <h3 class="text-xl font-bold mb-4">新規投稿</h3>
-        <form id="create-post-form" onsubmit="handleCreatePost(event)">
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-semibold mb-1">投稿内容 *</label>
-                    <textarea name="content" required rows="4"
-                              class="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none"
-                              placeholder="今日飲んだ日本酒のことを共有しよう！&#10;#ハッシュタグ も使えます"></textarea>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold mb-1">画像（任意）</label>
-                    <input type="file" accept="image/*" name="image"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                </div>
-                <button type="submit" class="w-full btn btn-primary text-white py-3 rounded-xl font-bold">
-                    <i class="fas fa-paper-plane mr-2"></i>
-                    投稿する
-                </button>
-            </div>
-        </form>
-    `);
-}
-
-function handleCreatePost(event) {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    
-    const postData = {
-        content: formData.get('content')
-    };
-
-    // 画像がある場合（実装簡略化のため省略）
-    // TODO: 画像アップロード処理
-
-    dataManager.addPost(postData);
-    closeModal();
-    showToast('投稿しました！', 'success');
-    switchTab('community');
+    // チャートを描画
+    setTimeout(() => {
+        createRadarChart('detail-chart', sake.taste_profile, sake.character_name);
+    }, 100);
 }
 
 // ==================== テイスティング機能 ====================
-function initializeTastingChart() {
-    const profile = dataManager.getUserProfile();
-    renderRadarChart('tasting-chart', profile.taste_profile);
-}
 
-function handleTastingSubmit(event) {
+function submitTastingRecord(event) {
     event.preventDefault();
-    const formData = new FormData(event.target);
-
-    const record = {
-        sake_id: formData.get('tasting-sake'),
-        gender: formData.get('gender'),
-        age_range: formData.get('age_range'),
-        taste_profile: {
-            sweetness: parseInt(formData.get('sweetness')),
-            acidity: parseInt(formData.get('acidity')),
-            umami: parseInt(formData.get('umami')),
-            bitterness: parseInt(formData.get('bitterness')),
-            aroma: parseInt(formData.get('aroma'))
-        }
-    };
-
-    dataManager.addTastingRecord(record);
-    showToast('記録しました！', 'success');
     
-    // チャートを更新
-    renderRadarChart('tasting-chart', record.taste_profile);
+    const sakeId = document.getElementById('sake-select').value;
+    if (!sakeId) {
+        showToast('銘柄を選択してください', 'error');
+        return;
+    }
+    
+    const record = {
+        sake_id: sakeId,
+        gender: document.getElementById('gender-select').value,
+        age_range: document.getElementById('age-select').value,
+        taste_profile: {
+            sweetness: parseInt(document.getElementById('sweetness-slider').value),
+            acidity: parseInt(document.getElementById('acidity-slider').value),
+            umami: parseInt(document.getElementById('umami-slider').value),
+            bitterness: parseInt(document.getElementById('bitterness-slider').value),
+            aroma: parseInt(document.getElementById('aroma-slider').value)
+        },
+        notes: document.getElementById('tasting-notes').value
+    };
+    
+    dataManager.addTastingRecord(record);
+    
+    // 経験値を追加
+    dataManager.addExperience(sakeId, 20);
+    
+    showToast('テイスティング記録を保存しました！', 'success');
     
     // フォームをリセット
     event.target.reset();
+    
+    // スタンプを更新
+    dataManager.checkAndUpdateStamps();
 }
+
+// テイスティングスライダーの更新時にチャートを更新
+let tastingChartUpdateTimeout;
+document.addEventListener('input', (e) => {
+    if (e.target.id && e.target.id.includes('-slider') && currentTab === 'tasting') {
+        clearTimeout(tastingChartUpdateTimeout);
+        tastingChartUpdateTimeout = setTimeout(() => {
+            const canvas = document.getElementById('tasting-chart');
+            if (canvas) {
+                const data = {
+                    sweetness: parseInt(document.getElementById('sweetness-slider')?.value || 3),
+                    acidity: parseInt(document.getElementById('acidity-slider')?.value || 3),
+                    umami: parseInt(document.getElementById('umami-slider')?.value || 3),
+                    bitterness: parseInt(document.getElementById('bitterness-slider')?.value || 3),
+                    aroma: parseInt(document.getElementById('aroma-slider')?.value || 3)
+                };
+                createRadarChart('tasting-chart', data);
+            }
+        }, 300);
+    }
+});
 
 // ==================== AI診断機能 ====================
-function initializeProfileChart() {
-    const profile = dataManager.getUserProfile();
-    renderRadarChart('profile-chart', profile.taste_profile);
-}
 
-function updateProfileValue(key, value) {
-    document.getElementById(`profile-${key}-value`).textContent = value;
+function updateProfileSlider(taste, value) {
+    document.getElementById(`profile-${taste}-value`).textContent = value;
     
-    // チャートをリアルタイム更新
-    const profile = {};
-    ['sweetness', 'acidity', 'umami', 'bitterness', 'aroma'].forEach(k => {
-        profile[k] = parseInt(document.getElementById(`profile-${k}`).value);
-    });
-    
-    renderRadarChart('profile-chart', profile);
+    // チャートを更新
+    clearTimeout(window.profileUpdateTimeout);
+    window.profileUpdateTimeout = setTimeout(() => {
+        const data = {
+            sweetness: parseInt(document.getElementById('profile-sweetness-slider').value),
+            acidity: parseInt(document.getElementById('profile-acidity-slider').value),
+            umami: parseInt(document.getElementById('profile-umami-slider').value),
+            bitterness: parseInt(document.getElementById('profile-bitterness-slider').value),
+            aroma: parseInt(document.getElementById('profile-aroma-slider').value)
+        };
+        createRadarChart('profile-chart', data);
+    }, 300);
 }
 
 function saveProfile() {
-    const profile = {
-        taste_profile: {
-            sweetness: parseInt(document.getElementById('profile-sweetness').value),
-            acidity: parseInt(document.getElementById('profile-acidity').value),
-            umami: parseInt(document.getElementById('profile-umami').value),
-            bitterness: parseInt(document.getElementById('profile-bitterness').value),
-            aroma: parseInt(document.getElementById('profile-aroma').value)
-        }
+    const newProfile = {
+        sweetness: parseInt(document.getElementById('profile-sweetness-slider').value),
+        acidity: parseInt(document.getElementById('profile-acidity-slider').value),
+        umami: parseInt(document.getElementById('profile-umami-slider').value),
+        bitterness: parseInt(document.getElementById('profile-bitterness-slider').value),
+        aroma: parseInt(document.getElementById('profile-aroma-slider').value)
     };
-
-    dataManager.updateUserProfile(profile);
-    showToast('プロファイルを保存しました', 'success');
+    
+    dataManager.updateUserProfile({ taste_profile: newProfile });
+    showToast('プロファイルを保存しました！', 'success');
     
     // タブを再描画（推薦を更新）
     switchTab('diagnosis');
 }
 
+// ==================== コミュニティ機能 ====================
+
+function showNewPostForm() {
+    const modalContent = `
+        <div class="space-y-4">
+            <h3 class="text-xl font-bold text-gray-800">新しい投稿</h3>
+            
+            <form id="post-form" onsubmit="submitPost(event)">
+                <textarea id="post-content" 
+                          rows="4" 
+                          class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg mb-4"
+                          placeholder="今日の推し酒について語ろう... #推し酒"
+                          required></textarea>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <button type="submit" 
+                            class="btn btn-primary text-white py-3 rounded-xl font-bold">
+                        <i class="fas fa-paper-plane mr-2"></i>
+                        投稿する
+                    </button>
+                    <button type="button" 
+                            onclick="closeModal()"
+                            class="btn bg-gray-600 text-white py-3 rounded-xl font-bold">
+                        キャンセル
+                    </button>
+                </div>
+            </form>
+        </div>
+    `;
+    
+    showModal(modalContent);
+}
+
+function submitPost(event) {
+    event.preventDefault();
+    
+    const content = document.getElementById('post-content').value;
+    if (!content.trim()) {
+        showToast('投稿内容を入力してください', 'error');
+        return;
+    }
+    
+    dataManager.addPost({ content });
+    showToast('投稿しました！', 'success');
+    
+    closeModal();
+    switchTab('community');
+}
+
 // ==================== デバッグ用 ====================
+
 window.appDebug = {
-    dataManager: () => dataManager,
-    aiService: () => aiGenerationService,
-    switchTab: (tab) => switchTab(tab),
-    clearData: () => {
-        dataManager.clearAllData();
-        showToast('データをクリアしました', 'success');
-        location.reload();
-    },
-    loadSample: () => {
-        dataManager.loadSampleData();
-        showToast('サンプルデータを読み込みました', 'success');
-        switchTab('home');
-    },
-    testAI: async () => {
-        console.log('AI生成テスト開始...');
-        const testImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-        try {
-            const result = await aiGenerationService.generateCharacterFromLabel(testImage);
-            console.log('生成結果:', result);
-            return result;
-        } catch (error) {
-            console.error('テスト失敗:', error);
-        }
+    testAI: () => {
+        console.log('AI Generation Service:', aiGenerationService);
+        console.log('Generation History:', aiGenerationService.getHistory());
     },
     showHistory: () => {
-        console.log('生成履歴:', aiGenerationService.getHistory());
+        console.table(aiGenerationService.getHistory());
     },
+    aiGenerationService: () => aiGenerationService,
     currentImageSrc: () => capturedImage,
-    aiGenerationService: () => aiGenerationService
+    dataManager: () => dataManager
 };
 
-console.log('推し酒アプリ準備完了！');
+console.log('推し酒アプリが起動しました！');
 console.log('デバッグコマンド: window.appDebug');
